@@ -58,10 +58,13 @@ from jira.resources import CustomFieldOption
 from jira.resources import Dashboard
 from jira.resources import Filter
 from jira.resources import GreenHopperResource
+from jira.resources import Group
 from jira.resources import Issue
 from jira.resources import IssueLink
 from jira.resources import IssueLinkType
 from jira.resources import IssueType
+from jira.resources import NotificationScheme
+from jira.resources import PermissionScheme
 from jira.resources import Priority
 from jira.resources import Project
 from jira.resources import RemoteLink
@@ -2008,9 +2011,39 @@ class JIRA(object):
             Version(self._options, self._session, raw_ver_json) for raw_ver_json in r_json]
         return versions
 
-    # non-resource
     @translate_resource_args
-    def project_roles(self, project):
+    def project_notificationscheme(self, project):
+        """Get the notification scheme for a project visible to the current
+        authenticated user.
+
+        :param project: ID or key of the project to get notification scheme for
+        """
+        # XXX should pass expand? but none of the other methods do...
+        expand = 'notificationSchemeEvents,user,group,projectRole,field,all'
+        expand = 'all'
+        r_json = self._get_json('project/' + project + '/notificationscheme', {'expand': expand})
+        notificationscheme = NotificationScheme(self._options, self._session, r_json)
+        return notificationscheme
+
+    @translate_resource_args
+    def project_permissionscheme(self, project):
+        """Get the permission scheme for a project visible to the current
+        authenticated user.
+
+        :param project: ID or key of the project to get permission scheme for
+        """
+        # XXX should pass expand? but none of the other methods do...
+        # XXX the server crashes with various apparently-valid values?! only 'permissions' seems to work
+        # XXX therefore get the resource directly
+        expand = 'permissions,user,group,projectRole,field,all'
+        r_json = self._get_json('project/' + project + '/permissionscheme', {'expand': ''})
+        #permissionscheme = PermissionScheme(self._options, self._session, r_json)
+        permissionscheme = self._find_for_resource(PermissionScheme, r_json['id'], expand=expand)
+        return permissionscheme
+
+    # non-resource unless as_list=True
+    @translate_resource_args
+    def project_roles(self, project, as_list=False):
         """Get a dict of role names to resource locations for a project.
 
         :param project: ID or key of the project to get roles from
@@ -2018,14 +2051,17 @@ class JIRA(object):
         path = 'project/' + project + '/role'
         _rolesdict = self._get_json(path)
         rolesdict = {}
+        roleslist = []
 
         for k, v in _rolesdict.items():
             tmp = {}
             tmp['id'] = v.split("/")[-1]
             tmp['url'] = v
-            rolesdict[k] = tmp
-        return rolesdict
-        # TODO(ssbarnea): return a list of Roles()
+            if not as_list:
+                rolesdict[k] = tmp
+            else:
+                roleslist.append(self.project_role(project, tmp['id']))
+        return rolesdict if not as_list else roleslist
 
     @translate_resource_args
     def project_role(self, project, id):
@@ -2037,6 +2073,21 @@ class JIRA(object):
         if isinstance(id, Number):
             id = "%s" % id
         return self._find_for_resource(Role, (project, id))
+
+    # role actors are not resources (they are PropertyHolder instances) but
+    # they may represent User or Group resources
+    def role_actor_resource(self, role_actor):
+        """Convert a role actor to a User or Group resource.
+
+        :param role_actor: PropertyHolder to convert to User or Group resource
+        """
+        if role_actor.type == 'atlassian-user-role-actor':
+            resource = self._find_for_resource(User, role_actor.name)
+        elif role_actor.type == 'atlassian-group-role-actor':
+            resource = self._find_for_resource(Group, role_actor.name)
+        else:
+            raise NotImplementedError("Unsupported Role actor type: %s" % role_actor.type)
+        return resource
 
     # Resolutions
 
