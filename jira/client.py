@@ -67,6 +67,7 @@ from jira.resources import NotificationScheme
 from jira.resources import PermissionScheme
 from jira.resources import Priority
 from jira.resources import Project
+from jira.resources import ProjectRole
 from jira.resources import RemoteLink
 from jira.resources import RequestType
 from jira.resources import Resolution
@@ -2012,19 +2013,60 @@ class JIRA(object):
         return versions
 
     @translate_resource_args
+    def notificationschemes(self):
+        """Get a list of notificationscheme Resources."""
+
+        # XXX what governs whether the results are paged and need to use 'values'?
+        r_json = self._get_json('notificationscheme')
+        notificationschemes = [NotificationScheme(self._options, self._session, raw_res_json) for
+                 raw_res_json in r_json['values']]
+        return notificationschemes
+
+    @translate_resource_args
+    def notificationscheme(self, id):
+        """Get a notificationscheme Resource.
+
+        :param id: ID of the notificationscheme to get
+        """
+        if isinstance(id, Number):
+            id = "%s" % id
+        return self._find_for_resource(NotificationScheme, id)
+
+    # XXX should pass expand? but none of the other methods do...
+    @translate_resource_args
     def project_notificationscheme(self, project):
         """Get the notification scheme for a project visible to the current
         authenticated user.
 
         :param project: ID or key of the project to get notification scheme for
         """
-        # XXX should pass expand? but none of the other methods do...
-        expand = 'notificationSchemeEvents,user,group,projectRole,field,all'
         expand = 'all'
         r_json = self._get_json('project/' + project + '/notificationscheme', {'expand': expand})
         notificationscheme = NotificationScheme(self._options, self._session, r_json)
         return notificationscheme
 
+    @translate_resource_args
+    def permissionschemes(self):
+        """Get a list of permissionscheme Resources."""
+
+        # XXX what governs whether the results are paged and need to use 'permissionSchemes'?
+        r_json = self._get_json('permissionscheme')
+        permissionschemes = [
+            PermissionScheme(self._options, self._session, raw_res_json) for
+            raw_res_json in r_json['permissionSchemes']]
+        return permissionschemes
+
+    @translate_resource_args
+    def permissionscheme(self, id):
+        """Get a permissionscheme Resource.
+
+        :param id: ID of the permissionscheme to get
+        """
+        if isinstance(id, Number):
+            id = "%s" % id
+        return self._find_for_resource(PermissionScheme, id)
+
+    # XXX should pass expand? but none of the other methods do...
     @translate_resource_args
     def project_permissionscheme(self, project):
         """Get the permission scheme for a project visible to the current
@@ -2032,21 +2074,44 @@ class JIRA(object):
 
         :param project: ID or key of the project to get permission scheme for
         """
-        # XXX should pass expand? but none of the other methods do...
-        # XXX the server crashes with various apparently-valid values?! only 'permissions' seems to work
-        # XXX therefore get the resource directly
-        expand = 'permissions,user,group,projectRole,field,all'
-        r_json = self._get_json('project/' + project + '/permissionscheme', {'expand': ''})
+        # XXX the server crashes with most 'expand' values but, e.g., 'permissions' works
+        r_json = self._get_json('project/' + project + '/permissionscheme')
+
+        # XXX this wouldn't contain all the project role information
         #permissionscheme = PermissionScheme(self._options, self._session, r_json)
+
+        # XXX therefore get the resource directly
+        expand = 'all'
         permissionscheme = self._find_for_resource(PermissionScheme, r_json['id'], expand=expand)
         return permissionscheme
+
+    @translate_resource_args
+    def roles(self):
+        """Get a list of role Resources."""
+
+        r_json = self._get_json('role')
+        roles = [Role(self._options, self._session, raw_res_json) for
+                 raw_res_json in r_json]
+        return roles
+
+    @translate_resource_args
+    def role(self, id):
+        """Get a role Resource.
+
+        :param id: ID of the role to get
+        """
+        if isinstance(id, Number):
+            id = "%s" % id
+        return self._find_for_resource(Role, id)
 
     # non-resource unless as_list=True
     @translate_resource_args
     def project_roles(self, project, as_list=False):
-        """Get a dict of role names to resource locations for a project.
+        """Get a dict of role names to resource locations for a project, or (if as_list=True)
+        a list of role Resources.
 
         :param project: ID or key of the project to get roles from
+        :param as_list: whether to return a list of role Resources
         """
         path = 'project/' + project + '/role'
         _rolesdict = self._get_json(path)
@@ -2065,14 +2130,14 @@ class JIRA(object):
 
     @translate_resource_args
     def project_role(self, project, id):
-        """Get a role Resource.
+        """Get a role Resource for a project.
 
         :param project: ID or key of the project to get the role from
         :param id: ID of the role to get
         """
         if isinstance(id, Number):
             id = "%s" % id
-        return self._find_for_resource(Role, (project, id))
+        return self._find_for_resource(ProjectRole, (project, id))
 
     # role actors are not resources (they are PropertyHolder instances) but
     # they may represent User or Group resources

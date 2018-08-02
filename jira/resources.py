@@ -188,6 +188,11 @@ class Resource(object):
     #     self._parse_raw(raw_pickled)
     #
 
+    # XXX experimental resource cache; is it needed? complicated, because resources
+    #     can be fetched directly and/or returned in the data from another request;
+    #     should be done at the self._session.get() level anyway, not here
+    cache = {}
+
     def find(self, id, params=None):
 
         if params is None:
@@ -197,8 +202,14 @@ class Resource(object):
             path = self._resource.format(*id)
         else:
             path = self._resource.format(id)
+
+        if path in Resource.cache:
+            logging.debug('could fetch %s from cache: %r' % (path, Resource.cache[path]))
+
         url = self._get_url(path)
         self._load(url, params=params)
+
+        Resource.cache[path] = self
 
     def _get_url(self, path):
         options = self._options.copy()
@@ -709,13 +720,17 @@ class PermissionScheme(Resource):
             self._parse_raw(raw)
 
 
-class Role(Resource):
-    """A role inside a project."""
+class Role_(Resource):
+    """A role outside or inside a project."""
 
-    def __init__(self, options, session, raw=None):
-        Resource.__init__(self, 'project/{0}/role/{1}', options, session)
+    def __init__(self, resource, options, session, raw=None):
+        Resource.__init__(self, resource, options, session)
         if raw:
             self._parse_raw(raw)
+
+            # if no actors are defined, the JSON doesn't have an 'actors' attribute
+            if not hasattr(self, 'actors'):
+                setattr(self, 'actors', [])
 
     def update(self, users=None, groups=None):
         """Add the specified users or groups to this project role. One of ``users`` or ``groups`` must be specified.
@@ -759,6 +774,20 @@ class Role(Resource):
         data = {
             'user': users}
         self._session.post(self.self, data=json.dumps(data))
+
+
+class Role(Role_):
+    """A role outside a project."""
+
+    def __init__(self, options, session, raw=None):
+        Role_.__init__(self, 'role/{0}', options, session, raw=raw)
+
+
+class ProjectRole(Role_):
+    """A role inside a project."""
+
+    def __init__(self, options, session, raw=None):
+        Role_.__init__(self, 'project/{0}/role/{1}', options, session, raw=raw)
 
 
 class Resolution(Resource):
@@ -1018,9 +1047,7 @@ resource_class_map = {
     r'permissionscheme/[^/]+/permission/[^/]+$': Permission,
     r'priority/[^/]+$': Priority,
     r'project/[^/]+$': Project,
-    r'project/[^/]+/notificationscheme/[^/]+$': NotificationScheme,
-    r'project/[^/]+/permissionscheme/[^/]+$': PermissionScheme,
-    r'project/[^/]+/role/[^/]+$': Role,
+    r'project/[^/]+/role/[^/]+$': ProjectRole,
     r'projectCategory/[^/]+$': ProjectCategory,
     r'resolution/[^/]+$': Resolution,
     r'role/[^/]+$': Role,
