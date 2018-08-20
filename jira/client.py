@@ -2104,14 +2104,20 @@ class JIRA(object):
             id = "%s" % id
         return self._find_for_resource(Role, id)
 
-    # non-resource unless as_list=True
+    # non-resource unless as_resources=True
     @translate_resource_args
-    def project_roles(self, project, as_list=False):
-        """Get a dict of role names to resource locations for a project, or (if as_list=True)
-        a list of role Resources.
+    def project_roles(self, project, as_list=False, as_resources=False):
+        """Get a dict or (if as_list=True) list of project roles;
+        returned values are ('self', 'name', 'id') dicts or (if
+        as_resources=True) project role Resources.
 
         :param project: ID or key of the project to get roles from
-        :param as_list: whether to return a list of role Resources
+        :param as_list: whether to return a list rather than a dict
+        :param as_resources: whether to return ProjectRole resources rather
+               than ('self', 'name', 'id') dicts
+
+        Note: For backwards compatibility, returned dict values also have
+        'url' items (duplicating 'self').
         """
         path = 'project/' + project + '/role'
         _rolesdict = self._get_json(path)
@@ -2119,13 +2125,15 @@ class JIRA(object):
         roleslist = []
 
         for k, v in _rolesdict.items():
-            tmp = {}
-            tmp['id'] = v.split("/")[-1]
-            tmp['url'] = v
+            tmp = {'self': v, 'name': k, 'id': v.split("/")[-1]}
+            if not as_resources:
+                tmp['url'] = tmp['self']
+            else:
+                tmp = ProjectRole(self._options, self._session, tmp)
             if not as_list:
                 rolesdict[k] = tmp
             else:
-                roleslist.append(self.project_role(project, tmp['id']))
+                roleslist.append(tmp)
         return rolesdict if not as_list else roleslist
 
     @translate_resource_args
