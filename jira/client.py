@@ -65,6 +65,7 @@ from jira.resources import IssueLinkType
 from jira.resources import IssueType
 from jira.resources import NotificationScheme
 from jira.resources import PermissionScheme
+from jira.resources import Permission
 from jira.resources import Priority
 from jira.resources import Project
 from jira.resources import ProjectRole
@@ -2030,7 +2031,8 @@ class JIRA(object):
         """
         if isinstance(id, Number):
             id = "%s" % id
-        return self._find_for_resource(NotificationScheme, id)
+        expand = 'all'
+        return self._find_for_resource(NotificationScheme, id, expand=expand)
 
     # XXX should pass expand? but none of the other methods do...
     @translate_resource_args
@@ -2045,6 +2047,7 @@ class JIRA(object):
         notificationscheme = NotificationScheme(self._options, self._session, r_json)
         return notificationscheme
 
+    # XXX @translate_resource_args is often used inappropriately; it works only for Project and Issue resource args
     @translate_resource_args
     def permissionschemes(self):
         """Get a list of permissionscheme Resources."""
@@ -2064,25 +2067,75 @@ class JIRA(object):
         """
         if isinstance(id, Number):
             id = "%s" % id
-        return self._find_for_resource(PermissionScheme, id)
+        expand = 'all'
+        return self._find_for_resource(PermissionScheme, id, expand=expand)
+
+    @translate_resource_args
+    def add_permission(self, permissionscheme, permission):
+        """Add a permission to the specified permission scheme and return a Resource
+        for it.
+
+        The permission scheme and permission are required.
+
+        :param permissionscheme: permission scheme resource to which to add the permission
+        :param permission: Dictionary containing the permission, e.g.
+               {
+                   "holder": {
+                       "type": "group",
+                       "parameter": "jira-developers"
+                    },
+                    "permission": "ADMINISTER_PROJECTS"
+               }
+        """
+        url = self._get_url('permissionscheme/' + str(permissionscheme.id) + '/permission')
+        r = self._session.post(url, data=json.dumps(permission))
+
+        permission = Permission(self._options, self._session, raw=json_loads(r))
+        return permission
+
+    # XXX There are too many variants; should this directly delete the resource? Also, there
+    #     are multiple ways in which the URL is created
+    def delete_permission(self, permissionscheme, permission):
+        """Delete a permission from the specified permission scheme. Returns True on success
+        and False on failure.
+
+        The permission scheme and permission are required.
+
+        :param permissionscheme: permission scheme resource from which to delete
+        the permission
+        :param permission: permission resource to be deleted
+        """
+        url = self._get_url(
+            'permissionscheme/' + str(permissionscheme.id) + '/permission/' + str(permission.id))
+
+        r = self._session.delete(url)
+        if 200 <= r.status_code <= 299:
+            return True
+        else:
+            logging.error(r.status_code)
+            return False
 
     # XXX should pass expand? but none of the other methods do...
     @translate_resource_args
-    def project_permissionscheme(self, project):
+    def project_permissionscheme(self, project, expand=None):
         """Get the permission scheme for a project visible to the current
         authenticated user.
 
         :param project: ID or key of the project to get permission scheme for
+        :param expand: set to empty (or other) string to override the default expand="all"
         """
         # XXX the server crashes with most 'expand' values but, e.g., 'permissions' works
         r_json = self._get_json('project/' + project + '/permissionscheme')
 
-        # XXX this wouldn't contain all the project role information
-        #permissionscheme = PermissionScheme(self._options, self._session, r_json)
+        # special case when don't need all the project role information
+        if isinstance(expand, string_types) and expand == '':
+            permissionscheme = PermissionScheme(self._options, self._session, r_json)
 
-        # XXX therefore get the resource directly
-        expand = 'all'
-        permissionscheme = self._find_for_resource(PermissionScheme, r_json['id'], expand=expand)
+        # otherwise need to get the resource directly
+        else:
+            if expand is None:
+                expand = 'all'
+            permissionscheme = self._find_for_resource(PermissionScheme, r_json['id'], expand=expand)
         return permissionscheme
 
     @translate_resource_args
