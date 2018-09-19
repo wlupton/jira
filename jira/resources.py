@@ -752,7 +752,7 @@ class Role_(Resource):
                 'atlassian-user-role-actor': users,
                 'atlassian-group-role-actor': groups}}
 
-        super(Role, self).update(**data)
+        super(Role_, self).update(**data)
 
     def add_user(self, users=None, groups=None):
         """Add the specified users or groups to this project role.
