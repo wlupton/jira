@@ -732,6 +732,8 @@ class Role_(Resource):
             if not hasattr(self, 'actors'):
                 setattr(self, 'actors', [])
 
+    # XXX the description is wrong; it doesn't "add" the users and groups, it
+    #     replaces them; see the misnamed add_user() method
     def update(self, users=None, groups=None):
         """Add the specified users or groups to this project role. One of ``users`` or ``groups`` must be specified.
 
@@ -770,9 +772,7 @@ class Role_(Resource):
         if groups is not None and isinstance(groups, string_types):
             groups = (groups,)
 
-        # XXX surely this should include groups!?
-        data = {
-            'user': users}
+        data = {'user': users, 'group': groups}
         self._session.post(self.self, data=json.dumps(data))
 
 
