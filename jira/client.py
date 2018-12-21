@@ -2291,6 +2291,8 @@ class JIRA(object):
                 for k, v in iteritems(untranslate):
                     if k in i.raw.get('fields', {}):
                         i.raw['fields'][v] = i.raw['fields'][k]
+                # XXX is this safe? would like a better way of doing this (if we don't do it, the untranslated field names aren't available)
+                i._parse_raw(i.raw)
 
         return issues
 
