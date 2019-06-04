@@ -203,6 +203,10 @@ class Resource(object):
         else:
             path = self._resource.format(id)
 
+        # if path contains query string, percent-escape special characters, e.g. "+"
+        # XXX urllib.parse.quote_plus() does too much! so just quote '+' for now
+        path = path.replace('+', '%2B')
+
         if path in Resource.cache:
             logging.debug('could fetch %s from cache: %r' % (path, Resource.cache[path]))
 
