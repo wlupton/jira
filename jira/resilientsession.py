@@ -106,6 +106,13 @@ class ResilientSession(Session):
 
     def __verb(self, verb, url, retry_data=None, **kwargs):
 
+        # XXX experimental support for 'expand'
+        params = kwargs.get('params', {})
+        if params:
+            expand = params.get('expand', '')
+            if expand:
+                url += '?expand=%s' % expand
+
         d = self.headers.copy()
         d.update(kwargs.get('headers', {}))
         kwargs['headers'] = d

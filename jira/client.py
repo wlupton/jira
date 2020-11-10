@@ -1877,19 +1877,24 @@ class JIRA(object):
 
     # Projects
 
-    def projects(self):
+    # XXX I don't think 'expand' does anything here
+    def projects(self, expand=None):
         """Get a list of project Resources from the server visible to the current authenticated user."""
-        r_json = self._get_json('project')
+        params = {}
+        if expand is not None:
+            params['expand'] = expand
+        r_json = self._get_json('project', params=params)
         projects = [Project(
             self._options, self._session, raw_project_json) for raw_project_json in r_json]
         return projects
 
-    def project(self, id):
+    # XXX I'm not sure that 'expand' is honored
+    def project(self, id, expand=None):
         """Get a project Resource from the server.
 
         :param id: ID or key of the project to get
         """
-        return self._find_for_resource(Project, id)
+        return self._find_for_resource(Project, id, expand=expand)
 
     # non-resource
     @translate_resource_args
@@ -2735,10 +2740,11 @@ class JIRA(object):
             'id': avatar}
         return self._session.put(url, params=params, data=json.dumps(data))
 
-    def _get_url(self, path, base=JIRA_BASE_URL):
+    def _get_url(self, path, base=JIRA_BASE_URL, expand=None):
         options = self._options.copy()
         options.update({'path': path})
-        return base.format(**options)
+        url = base.format(**options)
+        return url
 
     def _get_json(self, path, params=None, base=JIRA_BASE_URL):
         url = self._get_url(path, base)
